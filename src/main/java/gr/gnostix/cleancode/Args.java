@@ -122,12 +122,7 @@ public class Args {
             return false;
         }
         try {
-            if (m instanceof BooleanArgumentMarshaler)
-                setBooleanArg(m, currentArgument);
-            else if (m instanceof StringArgumentMarshaler)
-                setStringArg(m);
-            else if (m instanceof IntegerArgumentMarshaler)
-                setIntArg(m);
+            m.set(currentArgument);
         } catch (ArgumentsException e) {
             valid = false;
             errorArgumentId = argChar;
@@ -140,7 +135,7 @@ public class Args {
         String parameter = null;
         try {
             parameter = currentArgument.next();
-            m.set(parameter);
+            m.set(currentArgument);
         } catch (NoSuchElementException e) {
             errorCode = ErrorCode.MISSING_INTEGER;
             throw new ArgumentsException();
@@ -153,15 +148,16 @@ public class Args {
 
     private void setStringArg(ArgumentMarshaler m) throws ArgumentsException {
         try {
-            m.set(currentArgument.next());
-        } catch (ArrayIndexOutOfBoundsException e) {
+            m.set(currentArgument);
+        } catch (NoSuchElementException e) {
             errorCode = ErrorCode.MISSING_STRING;
             throw new ArgumentsException();
         }
     }
 
-    private void setBooleanArg(ArgumentMarshaler m, Iterator<String> currentArgument) throws ArgumentsException {
-        m.set("true");
+    private void setBooleanArg(ArgumentMarshaler m, Iterator<String> currentArgument)
+            throws ArgumentsException {
+        m.set(currentArgument);
     }
 
     public int cardinality() {
@@ -239,17 +235,21 @@ public class Args {
         return valid;
     }
 
-    private abstract class ArgumentMarshaler {
-        public abstract void set(String s) throws ArgumentsException;
+    private interface ArgumentMarshaler {
+        void set(Iterator<String> currentArguments)
+                throws ArgumentsException;
 
-        public abstract Object get();
+        Object get();
     }
 
-    private class BooleanArgumentMarshaler extends ArgumentMarshaler {
+    private class BooleanArgumentMarshaler implements ArgumentMarshaler {
         private boolean booleanValue = false;
 
-        public void set(String s) throws ArgumentsException {
+        public void set(Iterator<String> currentArgument) throws ArgumentsException {
             booleanValue = true;
+        }
+
+        public void set(String s) throws ArgumentsException {
 
         }
 
@@ -259,11 +259,19 @@ public class Args {
 
     }
 
-    private class StringArgumentMarshaler extends ArgumentMarshaler {
+    private class StringArgumentMarshaler implements ArgumentMarshaler {
         private String stringValue = "";
 
+        public void set(Iterator<String> currentArgument) throws ArgumentsException {
+            try {
+                stringValue = currentArgument.next();
+            } catch (NoSuchElementException e) {
+                errorCode = ErrorCode.MISSING_STRING;
+                throw new ArgumentsException();
+            }
+        }
+
         public void set(String s) throws ArgumentsException {
-            stringValue = s;
         }
 
         public Object get() {
@@ -272,8 +280,23 @@ public class Args {
 
     }
 
-    private class IntegerArgumentMarshaler extends ArgumentMarshaler {
+    private class IntegerArgumentMarshaler implements ArgumentMarshaler {
         private int intValue = 0;
+
+        public void set(Iterator<String> currentArgument) throws ArgumentsException {
+            String parameter = null;
+            try {
+                parameter = currentArgument.next();
+                intValue = Integer.parseInt(parameter);
+            } catch (NoSuchElementException e) {
+                errorCode = ErrorCode.MISSING_INTEGER;
+                throw new ArgumentsException();
+            } catch (NumberFormatException e) {
+                errorParameter = parameter;
+                errorCode = ErrorCode.INVALID_INTEGER;
+                throw new ArgumentsException();
+            }
+        }
 
         public void set(String s) throws ArgumentsException {
             try {
